@@ -20,7 +20,6 @@ id = "<YOUR_KV_DEV_NAMESPACE_ID>"
 ALLOWED_ORIGINS = "*"
 APP_URL = "http://localhost:8787"
 FRONTEND_URL = "http://localhost:5173"
-EMAIL_FROM = "noreply@example.com"
 
 # Secrets (set via: wrangler secret put <NAME> [--env <env>])
 # JWT_SECRET
@@ -46,7 +45,6 @@ id = "<YOUR_KV_STAGING_NAMESPACE_ID>"
 ALLOWED_ORIGINS = "*"
 APP_URL = "https://zig-auth-staging.<YOUR_SUBDOMAIN>.workers.dev"
 FRONTEND_URL = "https://zig-auth-staging.<YOUR_SUBDOMAIN>.workers.dev"
-EMAIL_FROM = "noreply@example.com"
 
 # --- Production ---
 [env.production]
@@ -65,4 +63,3 @@ id = "<YOUR_KV_PROD_NAMESPACE_ID>"
 ALLOWED_ORIGINS = "https://your-production-domain.com"
 APP_URL = "https://zig-auth-prod.<YOUR_SUBDOMAIN>.workers.dev"
 FRONTEND_URL = "https://your-production-domain.com"
-EMAIL_FROM = "noreply@example.com"

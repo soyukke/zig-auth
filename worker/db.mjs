@@ -17,15 +17,3 @@ export async function getUserById(db, id) {
   ).bind(id).first();
 }
 
-export async function updatePassword(db, userId, newHash) {
-  await db.prepare(
-    "UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?"
-  ).bind(newHash, userId).run();
-}
-
-export async function getUserPasswordHash(db, userId) {
-  const result = await db.prepare(
-    'SELECT password_hash FROM users WHERE id = ?'
-  ).bind(userId).first();
-  return result?.password_hash ?? null;
-}

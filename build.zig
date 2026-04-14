@@ -35,16 +35,4 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
 
-    // Benchmark
-    const bench_step = b.step("bench", "Run password hashing benchmark");
-    const bench = b.addExecutable(.{
-        .name = "bench",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/bench.zig"),
-            .target = native_target,
-            .optimize = .ReleaseFast,
-        }),
-    });
-    const bench_run = b.addRunArtifact(bench);
-    bench_step.dependOn(&bench_run.step);
 }

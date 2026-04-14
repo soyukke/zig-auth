@@ -14,8 +14,8 @@
       <a href="/login" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
         Login
       </a>
-      <a href="/signup" class="bg-gray-200 text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-300">
-        Sign up
+      <a href="/register" class="bg-gray-200 text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-300">
+        Register
       </a>
     </div>
   {/if}

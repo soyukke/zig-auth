@@ -32,43 +32,6 @@ function freeString(exports, ptr, len) {
   if (ptr && len > 0) exports.dealloc(ptr, len);
 }
 
-export async function hashPassword(password, salt) {
-  const { exports } = await getInstance();
-  const pass = writeString(exports, password);
-  const saltPtr = exports.alloc(16);
-  if (!saltPtr) throw new Error('WASM alloc failed for salt');
-  new Uint8Array(exports.memory.buffer, saltPtr, 16).set(salt);
-
-  try {
-    const status = exports.hash_password(pass.ptr, pass.len, saltPtr);
-    if (status !== 0) throw new Error(`hash_password failed: status ${status}`);
-    return readResult(exports);
-  } finally {
-    freeString(exports, pass.ptr, pass.len);
-    freeString(exports, saltPtr, 16);
-  }
-}
-
-export async function verifyPassword(password, hashStr) {
-  const { exports } = await getInstance();
-
-  // Validate hash length before passing to WASM (must be exactly 60 bytes)
-  const encoder = new TextEncoder();
-  const hashBytes = encoder.encode(hashStr);
-  if (hashBytes.length !== 60) return false;
-
-  const pass = writeString(exports, password);
-  const hash = writeString(exports, hashStr);
-
-  try {
-    const status = exports.verify_password(pass.ptr, pass.len, hash.ptr);
-    return status === 0;
-  } finally {
-    freeString(exports, pass.ptr, pass.len);
-    freeString(exports, hash.ptr, hash.len);
-  }
-}
-
 export async function createJwt(claimsJson, secret) {
   const { exports } = await getInstance();
   const claims = writeString(exports, claimsJson);

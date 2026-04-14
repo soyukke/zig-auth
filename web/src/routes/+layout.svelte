@@ -29,7 +29,7 @@
           </button>
         {:else}
           <a href="/login" class="text-sm text-blue-600 hover:underline">Login</a>
-          <a href="/signup" class="text-sm text-blue-600 hover:underline">Sign up</a>
+          <a href="/register" class="text-sm text-blue-600 hover:underline">Register</a>
         {/if}
       </div>
     </div>

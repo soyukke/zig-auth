@@ -1,39 +1,41 @@
 <script lang="ts">
+  import { startAuthentication } from '@simplewebauthn/browser';
   import { api } from '$lib/api';
   import { saveTokens, loadUser, user } from '$lib/auth';
   import { goto } from '$app/navigation';
 
-  let email = $state('');
-  let password = $state('');
   let error = $state('');
   let loading = $state(false);
-  let ready = $state(false);
   const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
-  import { onMount } from 'svelte';
-  onMount(() => { ready = true; });
-
-  async function handleSubmit(e: Event) {
-    e.preventDefault();
+  async function handlePasskeyLogin() {
     error = '';
     loading = true;
 
-    const res = await api.login(email, password);
-
-    if (res.data) {
-      saveTokens(res.data.access_token, res.data.refresh_token);
-      // Load user profile, then navigate
-      await loadUser();
-      if (!$user) {
-        // Fallback: parse JWT claims for basic user info
-        try {
-          const payload = JSON.parse(atob(res.data.access_token.split('.')[1]));
-          user.set({ id: payload.sub, email: payload.email, created_at: '', updated_at: '' });
-        } catch {}
+    try {
+      const optionsRes = await api.passkeyAuthOptions();
+      if (!optionsRes.data) {
+        error = optionsRes.error || 'Failed to get authentication options';
+        loading = false;
+        return;
       }
-      goto('/dashboard');
-    } else {
-      error = res.error || 'Login failed';
+
+      const authResponse = await startAuthentication({ optionsJSON: optionsRes.data });
+
+      const verifyRes = await api.passkeyAuthenticate(authResponse, optionsRes.data.challenge);
+      if (verifyRes.data) {
+        saveTokens(verifyRes.data.access_token, verifyRes.data.refresh_token);
+        await loadUser();
+        goto('/dashboard');
+      } else {
+        error = verifyRes.error || 'Authentication failed';
+      }
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError') {
+        error = 'Authentication was cancelled';
+      } else {
+        error = err.message || 'Authentication failed';
+      }
     }
     loading = false;
   }
@@ -46,43 +48,13 @@
     <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
   {/if}
 
-  <form onsubmit={handleSubmit} class="space-y-4">
-    <div>
-      <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-      <input
-        id="email"
-        type="email"
-        bind:value={email}
-        required
-        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        placeholder="you@example.com"
-      />
-    </div>
-
-    <div>
-      <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-      <input
-        id="password"
-        type="password"
-        bind:value={password}
-        required
-        minlength="8"
-        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-      />
-    </div>
-
-    <button
-      type="submit"
-      disabled={!ready || loading}
-      class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
-    >
-      {loading ? 'Logging in...' : 'Login'}
-    </button>
-  </form>
-
-  <p class="mt-2 text-right">
-    <a href="/forgot-password" class="text-sm text-gray-500 hover:underline">パスワードを忘れた？</a>
-  </p>
+  <button
+    onclick={handlePasskeyLogin}
+    disabled={loading}
+    class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 cursor-pointer text-lg font-medium"
+  >
+    {loading ? 'Authenticating...' : 'Sign in with Passkey'}
+  </button>
 
   <div class="mt-6">
     <div class="relative">
@@ -107,6 +79,6 @@
   </div>
 
   <p class="mt-4 text-center text-sm text-gray-600">
-    Don't have an account? <a href="/signup" class="text-blue-600 hover:underline">Sign up</a>
+    Don't have an account? <a href="/register" class="text-blue-600 hover:underline">Register</a>
   </p>
 </div>

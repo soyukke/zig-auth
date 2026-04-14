@@ -10,18 +10,19 @@
     "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1",
     "@sveltejs/adapter-cloudflare": "^5",
     "@sveltejs/kit": "^2",
     "@sveltejs/vite-plugin-svelte": "^5",
+    "@tailwindcss/vite": "^4",
     "svelte": "^5",
     "svelte-check": "^4",
-    "typescript": "^5",
-    "vite": "^6",
     "tailwindcss": "^4",
-    "@tailwindcss/vite": "^4",
-    "@playwright/test": "^1"
+    "typescript": "^5",
+    "vite": "^6"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.3.0",
     "flowbite-svelte": "^1"
   },
   "type": "module"

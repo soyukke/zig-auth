@@ -1,7 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const types = @import("types.zig");
-const password = @import("password.zig");
 const jwt = @import("jwt.zig");
 const base64url = @import("base64url.zig");
 
@@ -37,47 +36,6 @@ export fn get_result_ptr() usize {
 
 export fn get_result_len() usize {
     return result_len;
-}
-
-// --- Password exports ---
-
-/// Hash a password with bcrypt. Salt must be exactly 16 bytes at salt_ptr.
-/// On success (returns 0), result is available via get_result_ptr/get_result_len.
-/// Caller must dealloc the result when done.
-export fn hash_password(
-    pass_ptr: [*]const u8,
-    pass_len: usize,
-    salt_ptr: [*]const u8,
-) i32 {
-    clearResult();
-    const pass = pass_ptr[0..pass_len];
-    const salt: *const [16]u8 = @ptrCast(salt_ptr);
-
-    const hash_result = password.hashPassword(pass, salt.*) catch |err| {
-        return @intFromEnum(types.errorToStatus(err));
-    };
-
-    const out = allocator.alloc(u8, hash_result.len) catch
-        return @intFromEnum(types.StatusCode.internal_error);
-    @memcpy(out, &hash_result);
-    result_ptr = out.ptr;
-    result_len = out.len;
-    return 0;
-}
-
-/// Verify a password against a 60-byte bcrypt hash string at hash_ptr.
-export fn verify_password(
-    pass_ptr: [*]const u8,
-    pass_len: usize,
-    hash_ptr: [*]const u8,
-) i32 {
-    const pass = pass_ptr[0..pass_len];
-    const hash_str: *const [password.hash_length]u8 = @ptrCast(hash_ptr);
-
-    password.verifyPassword(pass, hash_str) catch |err| {
-        return @intFromEnum(types.errorToStatus(err));
-    };
-    return 0;
 }
 
 // --- JWT exports ---
@@ -130,7 +88,6 @@ export fn verify_jwt(
 
 test {
     _ = types;
-    _ = password;
     _ = jwt;
     _ = base64url;
 }
