@@ -1,0 +1,14 @@
+{
+  "name": "zig-auth",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "zig build -Doptimize=ReleaseSmall && cp zig-out/bin/zig-auth.wasm worker/",
+    "dev": "npm run build && npx wrangler dev",
+    "deploy": "npm run build && npx wrangler deploy",
+    "test:zig": "zig build test"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

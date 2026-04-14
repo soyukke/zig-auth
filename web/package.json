@@ -1,0 +1,28 @@
+{
+  "name": "zig-auth-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-cloudflare": "^5",
+    "@sveltejs/kit": "^2",
+    "@sveltejs/vite-plugin-svelte": "^5",
+    "svelte": "^5",
+    "svelte-check": "^4",
+    "typescript": "^5",
+    "vite": "^6",
+    "tailwindcss": "^4",
+    "@tailwindcss/vite": "^4",
+    "@playwright/test": "^1"
+  },
+  "dependencies": {
+    "flowbite-svelte": "^1"
+  },
+  "type": "module"
+}

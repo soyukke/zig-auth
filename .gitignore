@@ -1,0 +1,36 @@
+# Zig
+.zig-cache/
+zig-out/
+zig-cache/
+*.o
+
+# Nix
+result
+result-*
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
+._*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+
+# Secrets
+.dev.vars
+.env
+
+# Terraform / OpenTofu
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
