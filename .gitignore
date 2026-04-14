@@ -1,7 +1,6 @@
 # Zig
 .zig-cache/
 zig-out/
-zig-cache/
 *.o
 
 # Nix
@@ -10,6 +9,12 @@ result-*
 
 # Node
 node_modules/
+
+# SvelteKit
+.svelte-kit/
+
+# Wrangler
+.wrangler/
 
 # macOS
 .DS_Store
@@ -33,4 +38,11 @@ node_modules/
 *.tfstate
 *.tfstate.backup
 .terraform/
+.terraform.lock.hcl
 *.tfvars
+
+# Build artifacts
+*.wasm
+
+# Test
+test-results/
