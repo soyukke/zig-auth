@@ -27,6 +27,7 @@
               zig
               pkgs.zls
               pkgs.nodejs_20
+              pkgs.just
               pkgs.gitleaks
             ];
             shellHook = ''

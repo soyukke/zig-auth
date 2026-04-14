@@ -13,6 +13,18 @@ import { createUser, getUserByEmail } from '../db.mjs';
 import { createJwt } from '../wasm-bridge.mjs';
 import { storeRefreshToken } from '../kv.mjs';
 
+function uint8ToBase64url(uint8) {
+  const binStr = String.fromCharCode(...uint8);
+  return btoa(binStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64urlToUint8(str) {
+  const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = (4 - base64.length % 4) % 4;
+  const binStr = atob(base64 + '='.repeat(pad));
+  return Uint8Array.from(binStr, c => c.charCodeAt(0));
+}
+
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -95,20 +107,22 @@ export async function handleRegister(request, env) {
 
   const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
 
-  // Create user
-  const user = await createUser(env.DB, username, '');
+  // Create user and passkey in a batch
+  const userId = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
+  const passkeyId = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
+  const publicKeyB64 = uint8ToBase64url(new Uint8Array(credential.publicKey));
+  const transportsJson = regResponse.response?.transports ? JSON.stringify(regResponse.response.transports) : null;
 
-  // Store passkey
-  await createPasskey(env.DB, {
-    userId: user.id,
-    credentialId: credential.id,
-    publicKey: Buffer.from(credential.publicKey).toString('base64url'),
-    counter: credential.counter,
-    transports: regResponse.response?.transports,
-    deviceType: credentialDeviceType,
-    backedUp: credentialBackedUp,
-    name: 'Default Passkey',
-  });
+  const [userResult] = await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO users (id, email, password_hash) VALUES (?, ?, '') RETURNING id, email, created_at"
+    ).bind(userId, username),
+    env.DB.prepare(
+      `INSERT INTO passkeys (id, user_id, credential_id, public_key, counter, transports, device_type, backed_up, name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Default Passkey')`
+    ).bind(passkeyId, userId, credential.id, publicKeyB64, credential.counter, transportsJson, credentialDeviceType, credentialBackedUp ? 1 : 0),
+  ]);
+  const user = userResult.results[0];
 
   // Issue tokens
   const now = Math.floor(Date.now() / 1000);
@@ -201,7 +215,7 @@ export async function handleAdd(request, env) {
   const passkey = await createPasskey(env.DB, {
     userId,
     credentialId: credential.id,
-    publicKey: Buffer.from(credential.publicKey).toString('base64url'),
+    publicKey: uint8ToBase64url(new Uint8Array(credential.publicKey)),
     counter: credential.counter,
     transports: regResponse.response?.transports,
     deviceType: credentialDeviceType,
@@ -265,7 +279,7 @@ export async function handleAuthenticate(request, env) {
       expectedRPID: rpID,
       credential: {
         id: passkey.credential_id,
-        publicKey: Uint8Array.from(Buffer.from(passkey.public_key, 'base64url')),
+        publicKey: base64urlToUint8(passkey.public_key),
         counter: passkey.counter,
         transports: passkey.transports ? JSON.parse(passkey.transports) : undefined,
       },
