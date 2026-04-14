@@ -27,7 +27,6 @@
               zig
               pkgs.zls
               pkgs.nodejs_20
-              pkgs.opentofu
               pkgs.gitleaks
             ];
             shellHook = ''

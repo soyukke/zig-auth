@@ -15,6 +15,7 @@ node_modules/
 
 # Wrangler
 .wrangler/
+wrangler.toml
 
 # macOS
 .DS_Store
@@ -33,13 +34,6 @@ node_modules/
 # Secrets
 .dev.vars
 .env
-
-# Terraform / OpenTofu
-*.tfstate
-*.tfstate.backup
-.terraform/
-.terraform.lock.hcl
-*.tfvars
 
 # Build artifacts
 *.wasm

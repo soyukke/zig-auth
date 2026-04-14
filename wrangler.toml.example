@@ -1,0 +1,68 @@
+name = "zig-auth"
+main = "worker/index.mjs"
+compatibility_date = "2024-12-01"
+
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+fallthrough = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zig-auth-dev"
+database_id = "<YOUR_D1_DEV_DATABASE_ID>"
+
+[[kv_namespaces]]
+binding = "SESSIONS_KV"
+id = "<YOUR_KV_DEV_NAMESPACE_ID>"
+
+[vars]
+ALLOWED_ORIGINS = "*"
+APP_URL = "http://localhost:8787"
+FRONTEND_URL = "http://localhost:5173"
+EMAIL_FROM = "noreply@example.com"
+
+# Secrets (set via: wrangler secret put <NAME> [--env <env>])
+# JWT_SECRET
+# GITHUB_CLIENT_ID
+# GITHUB_CLIENT_SECRET
+# GOOGLE_CLIENT_ID
+# GOOGLE_CLIENT_SECRET
+
+# --- Staging ---
+[env.staging]
+name = "zig-auth-staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "zig-auth-staging"
+database_id = "<YOUR_D1_STAGING_DATABASE_ID>"
+
+[[env.staging.kv_namespaces]]
+binding = "SESSIONS_KV"
+id = "<YOUR_KV_STAGING_NAMESPACE_ID>"
+
+[env.staging.vars]
+ALLOWED_ORIGINS = "*"
+APP_URL = "https://zig-auth-staging.<YOUR_SUBDOMAIN>.workers.dev"
+FRONTEND_URL = "https://zig-auth-staging.<YOUR_SUBDOMAIN>.workers.dev"
+EMAIL_FROM = "noreply@example.com"
+
+# --- Production ---
+[env.production]
+name = "zig-auth-prod"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "zig-auth-prod"
+database_id = "<YOUR_D1_PROD_DATABASE_ID>"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS_KV"
+id = "<YOUR_KV_PROD_NAMESPACE_ID>"
+
+[env.production.vars]
+ALLOWED_ORIGINS = "https://your-production-domain.com"
+APP_URL = "https://zig-auth-prod.<YOUR_SUBDOMAIN>.workers.dev"
+FRONTEND_URL = "https://your-production-domain.com"
+EMAIL_FROM = "noreply@example.com"
