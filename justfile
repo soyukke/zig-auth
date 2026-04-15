@@ -8,17 +8,17 @@ default:
 
 # Worker + フロントエンドを同時に起動
 dev:
-    npx wrangler dev & \
-    cd web && npm run dev & \
+    pnpm exec wrangler dev & \
+    cd web && pnpm run dev & \
     wait
 
 # Worker のみ起動
 dev-worker:
-    npx wrangler dev
+    pnpm exec wrangler dev
 
 # フロントエンドのみ起動
 dev-web:
-    cd web && npm run dev
+    cd web && pnpm run dev
 
 # ── ビルド ──
 
@@ -28,7 +28,7 @@ build-wasm:
 
 # フロントエンドをビルド
 build-web:
-    cd web && npm run build
+    cd web && pnpm run build
 
 # 全ビルド
 build: build-wasm build-web
@@ -43,21 +43,21 @@ test:
 
 # ローカル DB にマイグレーション適用
 db-migrate:
-    npx wrangler d1 migrations apply zig-auth-dev --local
+    pnpm exec wrangler d1 migrations apply zig-auth-dev --local
 
 # リモート DB にマイグレーション適用
 db-migrate-remote env="":
-    npx wrangler d1 migrations apply zig-auth-dev --remote {{ if env != "" { "--env " + env } else { "" } }}
+    pnpm exec wrangler d1 migrations apply zig-auth-dev --remote {{ if env != "" { "--env " + env } else { "" } }}
 
 # ── デプロイ ──
 
 # staging にデプロイ
 deploy-staging: build-wasm
-    npx wrangler deploy --env staging
+    pnpm exec wrangler deploy --env staging
 
 # production にデプロイ
 deploy-prod: build-wasm
-    npx wrangler deploy --env production
+    pnpm exec wrangler deploy --env production
 
 # ── セットアップ ──
 
@@ -67,7 +67,7 @@ setup:
 
 # npm 依存インストール
 install:
-    npm install && cd web && npm install
+    pnpm install && cd web && pnpm install
 
 # ── セキュリティ ──
 

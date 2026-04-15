@@ -27,6 +27,7 @@
               zig
               pkgs.zls
               pkgs.nodejs_20
+              pkgs.pnpm
               pkgs.just
               pkgs.gitleaks
             ];
