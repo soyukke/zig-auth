@@ -15,6 +15,20 @@ pub const StatusCode = enum(i32) {
     invalid_token = 4,
     buffer_too_small = 5,
     internal_error = 6,
+    // WebAuthn status codes (used by main.zig glue layer)
+    invalid_client_data = 7,
+    invalid_type = 8,
+    invalid_challenge = 9,
+    invalid_origin = 10,
+    invalid_rp_id = 11,
+    invalid_attestation = 12,
+    invalid_attestation_format = 13,
+    unsupported_algorithm = 14,
+    invalid_authenticator_data = 15,
+    user_not_present = 16,
+    counter_not_incremented = 17,
+    invalid_cbor = 18,
+    invalid_encoding = 19,
 };
 
 pub fn errorToStatus(err: AuthError) StatusCode {

@@ -63,3 +63,64 @@ export async function verifyJwt(token, secret, currentTimeSecs = 0) {
     freeString(exports, sec.ptr, sec.len);
   }
 }
+
+export async function verifyRegistration(clientDataJSON, attestationObject, expectedChallenge, expectedOrigin, expectedRPID) {
+  const { exports } = await getInstance();
+  const cdj = writeString(exports, clientDataJSON);
+  const att = writeString(exports, attestationObject);
+  const chal = writeString(exports, expectedChallenge);
+  const orig = writeString(exports, expectedOrigin);
+  const rpid = writeString(exports, expectedRPID);
+
+  try {
+    const status = exports.verify_registration(
+      cdj.ptr, cdj.len,
+      att.ptr, att.len,
+      chal.ptr, chal.len,
+      orig.ptr, orig.len,
+      rpid.ptr, rpid.len,
+    );
+    if (status !== 0) throw new Error(`verify_registration failed: status ${status}`);
+    return JSON.parse(readResult(exports));
+  } finally {
+    freeString(exports, cdj.ptr, cdj.len);
+    freeString(exports, att.ptr, att.len);
+    freeString(exports, chal.ptr, chal.len);
+    freeString(exports, orig.ptr, orig.len);
+    freeString(exports, rpid.ptr, rpid.len);
+  }
+}
+
+export async function verifyAuthentication(clientDataJSON, authenticatorData, signature, publicKeyCBOR, storedCounter, expectedChallenge, expectedOrigin, expectedRPID) {
+  const { exports } = await getInstance();
+  const cdj = writeString(exports, clientDataJSON);
+  const ad = writeString(exports, authenticatorData);
+  const sig = writeString(exports, signature);
+  const pk = writeString(exports, publicKeyCBOR);
+  const chal = writeString(exports, expectedChallenge);
+  const orig = writeString(exports, expectedOrigin);
+  const rpid = writeString(exports, expectedRPID);
+
+  try {
+    const status = exports.verify_authentication(
+      cdj.ptr, cdj.len,
+      ad.ptr, ad.len,
+      sig.ptr, sig.len,
+      pk.ptr, pk.len,
+      storedCounter,
+      chal.ptr, chal.len,
+      orig.ptr, orig.len,
+      rpid.ptr, rpid.len,
+    );
+    if (status !== 0) throw new Error(`verify_authentication failed: status ${status}`);
+    return JSON.parse(readResult(exports));
+  } finally {
+    freeString(exports, cdj.ptr, cdj.len);
+    freeString(exports, ad.ptr, ad.len);
+    freeString(exports, sig.ptr, sig.len);
+    freeString(exports, pk.ptr, pk.len);
+    freeString(exports, chal.ptr, chal.len);
+    freeString(exports, orig.ptr, orig.len);
+    freeString(exports, rpid.ptr, rpid.len);
+  }
+}
