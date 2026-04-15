@@ -4,14 +4,11 @@
   "private": true,
   "scripts": {
     "build": "zig build -Doptimize=ReleaseSmall && cp zig-out/bin/zig-auth.wasm worker/",
-    "dev": "npm run build && npx wrangler dev",
-    "deploy": "npm run build && npx wrangler deploy",
+    "dev": "pnpm run build && pnpm exec wrangler dev",
+    "deploy": "pnpm run build && pnpm exec wrangler deploy",
     "test:zig": "zig build test"
   },
   "devDependencies": {
     "wrangler": "^4"
-  },
-  "dependencies": {
-    "@simplewebauthn/server": "^13.3.0"
   }
 }

@@ -1,16 +1,10 @@
-import {
-  generateRegistrationOptions,
-  verifyRegistrationResponse,
-  generateAuthenticationOptions,
-  verifyAuthenticationResponse,
-} from '@simplewebauthn/server';
 import { getWebAuthnConfig } from '../webauthn-config.mjs';
 import {
   createPasskey, getPasskeysByUserId, getPasskeyByCredentialId,
   updatePasskeyCounter, deletePasskey, countUserPasskeys,
 } from '../db-passkey.mjs';
 import { createUser, getUserByEmail } from '../db.mjs';
-import { createJwt } from '../wasm-bridge.mjs';
+import { createJwt, verifyRegistration, verifyAuthentication } from '../wasm-bridge.mjs';
 import { storeRefreshToken } from '../kv.mjs';
 
 function uint8ToBase64url(uint8) {
@@ -18,18 +12,56 @@ function uint8ToBase64url(uint8) {
   return btoa(binStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function base64urlToUint8(str) {
-  const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-  const pad = (4 - base64.length % 4) % 4;
-  const binStr = atob(base64 + '='.repeat(pad));
-  return Uint8Array.from(binStr, c => c.charCodeAt(0));
-}
-
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+// ── Option generation (inline, no library dependency) ──
+
+function generateRegistrationOptions({ rpName, rpID, userName, attestationType, excludeCredentials, authenticatorSelection }) {
+  const challengeBytes = new Uint8Array(32);
+  crypto.getRandomValues(challengeBytes);
+  const challenge = uint8ToBase64url(challengeBytes);
+
+  const userIdBytes = new Uint8Array(32);
+  crypto.getRandomValues(userIdBytes);
+
+  return {
+    challenge,
+    rp: { name: rpName, id: rpID },
+    user: { id: uint8ToBase64url(userIdBytes), name: userName, displayName: userName },
+    pubKeyCredParams: [
+      { alg: -7, type: 'public-key' },  // ES256
+    ],
+    timeout: 60000,
+    attestation: attestationType || 'none',
+    excludeCredentials: (excludeCredentials || []).map(c => ({
+      id: c.id,
+      type: 'public-key',
+      transports: c.transports,
+    })),
+    authenticatorSelection: authenticatorSelection || {
+      residentKey: 'preferred',
+      userVerification: 'preferred',
+    },
+  };
+}
+
+function generateAuthenticationOptions({ rpID, userVerification }) {
+  const challengeBytes = new Uint8Array(32);
+  crypto.getRandomValues(challengeBytes);
+  const challenge = uint8ToBase64url(challengeBytes);
+
+  return {
+    challenge,
+    rpId: rpID,
+    timeout: 60000,
+    userVerification: userVerification || 'preferred',
+    allowCredentials: [],
+  };
 }
 
 // ── Registration (new user) ──
@@ -50,7 +82,7 @@ export async function handleRegisterOptions(request, env) {
 
   const { rpID, rpName } = getWebAuthnConfig(env);
 
-  const options = await generateRegistrationOptions({
+  const options = generateRegistrationOptions({
     rpName,
     rpID,
     userName: username,
@@ -86,31 +118,29 @@ export async function handleRegister(request, env) {
   }
   await env.SESSIONS_KV.delete(`webauthn-reg:${challenge}`);
 
-  const { username, isNewUser } = JSON.parse(stored);
+  const { username } = JSON.parse(stored);
   const { rpID, origin } = getWebAuthnConfig(env);
 
-  let verification;
+  let result;
   try {
-    verification = await verifyRegistrationResponse({
-      response: regResponse,
-      expectedChallenge: challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-    });
+    result = await verifyRegistration(
+      regResponse.response.clientDataJSON,
+      regResponse.response.attestationObject,
+      challenge,
+      origin,
+      rpID,
+    );
   } catch (err) {
     return jsonResponse({ error: 'Verification failed: ' + err.message }, 400);
   }
 
-  if (!verification.verified || !verification.registrationInfo) {
+  if (!result.verified) {
     return jsonResponse({ error: 'Registration verification failed' }, 400);
   }
-
-  const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
 
   // Create user and passkey in a batch
   const userId = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
   const passkeyId = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
-  const publicKeyB64 = uint8ToBase64url(new Uint8Array(credential.publicKey));
   const transportsJson = regResponse.response?.transports ? JSON.stringify(regResponse.response.transports) : null;
 
   const [userResult] = await env.DB.batch([
@@ -120,7 +150,7 @@ export async function handleRegister(request, env) {
     env.DB.prepare(
       `INSERT INTO passkeys (id, user_id, credential_id, public_key, counter, transports, device_type, backed_up, name)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Default Passkey')`
-    ).bind(passkeyId, userId, credential.id, publicKeyB64, credential.counter, transportsJson, credentialDeviceType, credentialBackedUp ? 1 : 0),
+    ).bind(passkeyId, userId, result.credentialId, result.publicKey, result.counter, transportsJson, result.deviceType, result.backedUp ? 1 : 0),
   ]);
   const user = userResult.results[0];
 
@@ -156,7 +186,7 @@ export async function handleAddOptions(request, env) {
   const existingPasskeys = await getPasskeysByUserId(env.DB, userId);
   const { rpID, rpName } = getWebAuthnConfig(env);
 
-  const options = await generateRegistrationOptions({
+  const options = generateRegistrationOptions({
     rpName,
     rpID,
     userName: request.claims.email,
@@ -194,32 +224,31 @@ export async function handleAdd(request, env) {
 
   const { rpID, origin } = getWebAuthnConfig(env);
 
-  let verification;
+  let result;
   try {
-    verification = await verifyRegistrationResponse({
-      response: regResponse,
+    result = await verifyRegistration(
+      regResponse.response.clientDataJSON,
+      regResponse.response.attestationObject,
       expectedChallenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-    });
+      origin,
+      rpID,
+    );
   } catch (err) {
     return jsonResponse({ error: 'Verification failed: ' + err.message }, 400);
   }
 
-  if (!verification.verified || !verification.registrationInfo) {
+  if (!result.verified) {
     return jsonResponse({ error: 'Registration verification failed' }, 400);
   }
 
-  const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
-
   const passkey = await createPasskey(env.DB, {
     userId,
-    credentialId: credential.id,
-    publicKey: uint8ToBase64url(new Uint8Array(credential.publicKey)),
-    counter: credential.counter,
+    credentialId: result.credentialId,
+    publicKey: result.publicKey,
+    counter: result.counter,
     transports: regResponse.response?.transports,
-    deviceType: credentialDeviceType,
-    backedUp: credentialBackedUp,
+    deviceType: result.deviceType,
+    backedUp: result.backedUp,
     name: name || `Passkey ${new Date().toLocaleDateString()}`,
   });
 
@@ -232,7 +261,7 @@ export async function handleAdd(request, env) {
 export async function handleAuthenticateOptions(request, env) {
   const { rpID } = getWebAuthnConfig(env);
 
-  const options = await generateAuthenticationOptions({
+  const options = generateAuthenticationOptions({
     rpID,
     userVerification: 'preferred',
   });
@@ -270,30 +299,28 @@ export async function handleAuthenticate(request, env) {
 
   const { rpID, origin } = getWebAuthnConfig(env);
 
-  let verification;
+  let result;
   try {
-    verification = await verifyAuthenticationResponse({
-      response: authResponse,
-      expectedChallenge: challenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
-      credential: {
-        id: passkey.credential_id,
-        publicKey: base64urlToUint8(passkey.public_key),
-        counter: passkey.counter,
-        transports: passkey.transports ? JSON.parse(passkey.transports) : undefined,
-      },
-    });
+    result = await verifyAuthentication(
+      authResponse.response.clientDataJSON,
+      authResponse.response.authenticatorData,
+      authResponse.response.signature,
+      passkey.public_key,  // already base64url from DB
+      passkey.counter,
+      challenge,
+      origin,
+      rpID,
+    );
   } catch (err) {
     return jsonResponse({ error: 'Authentication failed: ' + err.message }, 401);
   }
 
-  if (!verification.verified) {
+  if (!result.verified) {
     return jsonResponse({ error: 'Authentication verification failed' }, 401);
   }
 
   // Update counter
-  await updatePasskeyCounter(env.DB, credentialId, verification.authenticationInfo.newCounter);
+  await updatePasskeyCounter(env.DB, credentialId, result.newCounter);
 
   // Issue tokens
   const now = Math.floor(Date.now() / 1000);

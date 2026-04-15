@@ -25,19 +25,23 @@ jobs:
         with:
           node-version: 20
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
       - name: Build WASM
         run: zig build -Doptimize=ReleaseSmall && cp zig-out/bin/zig-auth.wasm worker/
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Apply D1 migrations (remote)
-        run: node_modules/.bin/wrangler d1 migrations apply zig-auth-db --remote
+        run: pnpm exec wrangler d1 migrations apply zig-auth-db --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy Workers
-        run: node_modules/.bin/wrangler deploy
+        run: pnpm exec wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
@@ -52,11 +56,15 @@ jobs:
         with:
           node-version: 20
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
       - name: Install & Build
         working-directory: web
         run: |
-          npm install
-          npm run build
+          pnpm install
+          pnpm run build
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

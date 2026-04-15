@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const types = @import("types.zig");
 const jwt = @import("jwt.zig");
 const base64url = @import("base64url.zig");
+const webauthn = @import("webauthn");
 
 const allocator = if (builtin.cpu.arch == .wasm32)
     std.heap.wasm_allocator
@@ -84,6 +85,116 @@ export fn verify_jwt(
     result_ptr = claims.ptr;
     result_len = claims.len;
     return 0;
+}
+
+// --- WebAuthn exports ---
+
+/// Verify a WebAuthn registration response.
+/// All string inputs are base64url-encoded where applicable.
+/// On success (returns 0), JSON result is available via get_result_ptr/get_result_len.
+export fn verify_registration(
+    cdj_b64_ptr: [*]const u8,
+    cdj_b64_len: usize,
+    att_obj_b64_ptr: [*]const u8,
+    att_obj_b64_len: usize,
+    challenge_ptr: [*]const u8,
+    challenge_len: usize,
+    origin_ptr: [*]const u8,
+    origin_len: usize,
+    rp_id_ptr: [*]const u8,
+    rp_id_len: usize,
+) i32 {
+    clearResult();
+
+    const cdj_b64 = cdj_b64_ptr[0..cdj_b64_len];
+    const att_obj_b64 = att_obj_b64_ptr[0..att_obj_b64_len];
+    const challenge = challenge_ptr[0..challenge_len];
+    const origin = origin_ptr[0..origin_len];
+    const rp_id = rp_id_ptr[0..rp_id_len];
+
+    const json = webauthn.verifyRegistration(
+        allocator,
+        cdj_b64,
+        att_obj_b64,
+        challenge,
+        origin,
+        rp_id,
+    ) catch |err| {
+        return toWebAuthnStatus(err);
+    };
+
+    result_ptr = json.ptr;
+    result_len = json.len;
+    return 0;
+}
+
+/// Verify a WebAuthn authentication response.
+/// On success (returns 0), JSON result is available via get_result_ptr/get_result_len.
+export fn verify_authentication(
+    cdj_b64_ptr: [*]const u8,
+    cdj_b64_len: usize,
+    auth_data_b64_ptr: [*]const u8,
+    auth_data_b64_len: usize,
+    sig_b64_ptr: [*]const u8,
+    sig_b64_len: usize,
+    pub_key_b64_ptr: [*]const u8,
+    pub_key_b64_len: usize,
+    stored_counter: u32,
+    challenge_ptr: [*]const u8,
+    challenge_len: usize,
+    origin_ptr: [*]const u8,
+    origin_len: usize,
+    rp_id_ptr: [*]const u8,
+    rp_id_len: usize,
+) i32 {
+    clearResult();
+
+    const cdj_b64 = cdj_b64_ptr[0..cdj_b64_len];
+    const auth_data_b64 = auth_data_b64_ptr[0..auth_data_b64_len];
+    const sig_b64 = sig_b64_ptr[0..sig_b64_len];
+    const pub_key_b64 = pub_key_b64_ptr[0..pub_key_b64_len];
+    const challenge = challenge_ptr[0..challenge_len];
+    const origin = origin_ptr[0..origin_len];
+    const rp_id = rp_id_ptr[0..rp_id_len];
+
+    const json = webauthn.verifyAuthentication(
+        allocator,
+        cdj_b64,
+        auth_data_b64,
+        sig_b64,
+        pub_key_b64,
+        stored_counter,
+        challenge,
+        origin,
+        rp_id,
+    ) catch |err| {
+        return toWebAuthnStatus(err);
+    };
+
+    result_ptr = json.ptr;
+    result_len = json.len;
+    return 0;
+}
+
+fn toWebAuthnStatus(err: webauthn.WebAuthnError) i32 {
+    const status: types.StatusCode = switch (err) {
+        error.InvalidClientData => .invalid_client_data,
+        error.InvalidType => .invalid_type,
+        error.InvalidChallenge => .invalid_challenge,
+        error.InvalidOrigin => .invalid_origin,
+        error.InvalidRpId => .invalid_rp_id,
+        error.InvalidAttestation => .invalid_attestation,
+        error.InvalidAttestationFormat => .invalid_attestation_format,
+        error.UnsupportedAlgorithm => .unsupported_algorithm,
+        error.InvalidAuthenticatorData => .invalid_authenticator_data,
+        error.InvalidSignature => .invalid_signature,
+        error.UserNotPresent => .user_not_present,
+        error.CounterNotIncremented => .counter_not_incremented,
+        error.InvalidCbor => .invalid_cbor,
+        error.InvalidEncoding => .invalid_encoding,
+        error.OutOfMemory => .internal_error,
+    };
+    return @intFromEnum(status);
 }
 
 test {

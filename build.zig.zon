@@ -3,7 +3,11 @@
     .version = "0.1.0",
     .fingerprint = 0x30b453baf0d78dfe,
     .minimum_zig_version = "0.15.2",
-    .dependencies = .{},
+    .dependencies = .{
+        .webauthn = .{
+            .path = "lib/webauthn",
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",

@@ -6,9 +6,11 @@ zig-out/
 # Nix
 result
 result-*
+.direnv/
 
 # Node
 node_modules/
+package-lock.json
 
 # SvelteKit
 .svelte-kit/
