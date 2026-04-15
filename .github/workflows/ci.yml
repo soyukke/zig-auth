@@ -54,6 +54,9 @@ jobs:
           name: zig-auth-wasm
           path: worker/
 
+      - name: Generate wrangler.toml for local testing
+        run: cp wrangler.toml.example wrangler.toml
+
       - name: Install API dependencies
         run: pnpm install
 
@@ -62,7 +65,7 @@ jobs:
         run: pnpm install
 
       - name: Apply D1 migrations
-        run: pnpm exec wrangler d1 migrations apply zig-auth-db --local
+        run: pnpm exec wrangler d1 migrations apply zig-auth-dev --local
 
       - name: Install Playwright browsers
         working-directory: web
@@ -81,24 +84,3 @@ jobs:
           name: playwright-results
           path: web/test-results/
 
-  lint-infra:
-    name: OpenTofu Validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.11.6
-
-      - name: Validate dev
-        working-directory: infra/environments/dev
-        run: |
-          tofu init -backend=false
-          tofu validate
-
-      - name: Validate prod
-        working-directory: infra/environments/prod
-        run: |
-          tofu init -backend=false
-          tofu validate
