@@ -1,1 +1,5 @@
 lib/webauthn/src/webauthn.zig:generic-api-key:645
+src/worker/auth.zig:generic-api-key:471
+src/worker/auth.zig:generic-api-key:499
+src/worker/auth.zig:generic-api-key:511
+src/worker/auth.zig:generic-api-key:536
