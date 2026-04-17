@@ -79,7 +79,8 @@ pub fn handle(ctx: *Context, step: u32, prev_result: ?[]const u8) Action {
 
             // Create JWT claims
             // TODO: proper timestamp from JS
-            const claims = std.fmt.allocPrint(alloc,
+            const claims = std.fmt.allocPrint(
+                alloc,
                 "{{\"sub\":\"{s}\",\"email\":\"{s}\",\"jti\":\"{s}\",\"exp\":9999999999}}",
                 .{ user_id, email, new_rt[0..16] },
             ) catch return ctx.respondError(500, "Internal error");
@@ -100,7 +101,8 @@ pub fn handle(ctx: *Context, step: u32, prev_result: ?[]const u8) Action {
             const access_token = ctx.load("access_token") orelse return ctx.respondError(500, "Internal error");
             const refresh_token = ctx.load("new_refresh_token") orelse return ctx.respondError(500, "Internal error");
 
-            const body = std.fmt.allocPrint(alloc,
+            const body = std.fmt.allocPrint(
+                alloc,
                 "{{\"access_token\":\"{s}\",\"refresh_token\":\"{s}\",\"token_type\":\"Bearer\",\"expires_in\":900}}",
                 .{ access_token, refresh_token },
             ) catch return ctx.respondError(500, "Internal error");
@@ -117,7 +119,9 @@ fn getRandomBytes(buf: []u8) void {
     if (builtin.cpu.arch == .wasm32) {
         js_get_random_bytes(buf.ptr, buf.len);
     } else {
-        std.crypto.random.bytes(buf);
+        var threaded: std.Io.Threaded = .init(std.heap.smp_allocator, .{});
+        defer threaded.deinit();
+        threaded.io().random(buf);
     }
 }
 

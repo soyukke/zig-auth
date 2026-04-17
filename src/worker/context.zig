@@ -104,8 +104,10 @@ pub const Context = struct {
 
     pub fn d1Batch(self: *Context, statements: []const command.D1Statement) Action {
         const alloc = self.getAllocator();
-        var buf: std.ArrayListUnmanaged(u8) = .empty;
-        command.writeD1Batch(buf.writer(alloc), statements) catch return self.internalError();
+        var aw: std.Io.Writer.Allocating = .init(alloc);
+        defer aw.deinit();
+        command.writeD1Batch(&aw.writer, statements) catch return self.internalError();
+        const buf = aw.toArrayList();
         return self.makeCmd(.d1_batch, buf.items);
     }
 
@@ -123,15 +125,19 @@ pub const Context = struct {
 
     pub fn httpFetch(self: *Context, url: []const u8, method: []const u8, headers: ?[]const u8, fetch_body: ?[]const u8) Action {
         const alloc = self.getAllocator();
-        var buf: std.ArrayListUnmanaged(u8) = .empty;
-        command.writeFetch(buf.writer(alloc), url, method, headers, fetch_body) catch return self.internalError();
+        var aw: std.Io.Writer.Allocating = .init(alloc);
+        defer aw.deinit();
+        command.writeFetch(&aw.writer, url, method, headers, fetch_body) catch return self.internalError();
+        const buf = aw.toArrayList();
         return self.makeCmd(.http_fetch, buf.items);
     }
 
     pub fn envGet(self: *Context, name: []const u8) Action {
         const alloc = self.getAllocator();
-        var buf: std.ArrayListUnmanaged(u8) = .empty;
-        command.writeEnvGet(buf.writer(alloc), name) catch return self.internalError();
+        var aw: std.Io.Writer.Allocating = .init(alloc);
+        defer aw.deinit();
+        command.writeEnvGet(&aw.writer, name) catch return self.internalError();
+        const buf = aw.toArrayList();
         return self.makeCmd(.env_get, buf.items);
     }
 
@@ -153,11 +159,13 @@ pub const Context = struct {
 
     pub fn respondError(self: *Context, status: u16, message: []const u8) Action {
         const alloc = self.getAllocator();
-        var buf: std.ArrayListUnmanaged(u8) = .empty;
-        const writer = buf.writer(alloc);
+        var aw: std.Io.Writer.Allocating = .init(alloc);
+        defer aw.deinit();
+        const writer = &aw.writer;
         writer.writeAll("{\"error\":") catch return self.internalError();
         command.writeJsonString(writer, message) catch return self.internalError();
         writer.writeByte('}') catch return self.internalError();
+        const buf = aw.toArrayList();
         return .{ .response = .{
             .status = status,
             .body = buf.items,
@@ -167,11 +175,13 @@ pub const Context = struct {
 
     pub fn respondRedirect(self: *Context, url: []const u8) Action {
         const alloc = self.getAllocator();
-        var buf: std.ArrayListUnmanaged(u8) = .empty;
-        const w = buf.writer(alloc);
+        var aw: std.Io.Writer.Allocating = .init(alloc);
+        defer aw.deinit();
+        const w = &aw.writer;
         w.writeAll("{\"Location\":") catch return self.internalError();
         command.writeJsonString(w, url) catch return self.internalError();
         w.writeByte('}') catch return self.internalError();
+        const buf = aw.toArrayList();
         return .{ .response = .{
             .status = 302,
             .body = "",

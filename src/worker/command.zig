@@ -81,7 +81,7 @@ pub fn writeKvPut(writer: anytype, key: []const u8, value: []const u8, ttl: ?u32
     try writeJsonString(writer, value);
     if (ttl) |t| {
         try writer.writeAll(",\"ttl\":");
-        try std.fmt.format(writer, "{d}", .{t});
+        try writer.print("{d}", .{t});
     }
     try writer.writeByte('}');
 }
@@ -116,7 +116,7 @@ pub fn writeFetch(writer: anytype, url: []const u8, method: []const u8, headers:
 /// Write a JSON-encoded HTTP response (terminal command): {"status":N,"headers":{...},"body":"..."}
 pub fn writeResponse(writer: anytype, status: u16, headers_json: []const u8, body: []const u8) !void {
     try writer.writeAll("{\"status\":");
-    try std.fmt.format(writer, "{d}", .{status});
+    try writer.print("{d}", .{status});
     try writer.writeAll(",\"headers\":");
     try writer.writeAll(headers_json);
     try writer.writeAll(",\"body\":");
@@ -134,9 +134,9 @@ pub const D1Statement = struct {
 fn writeParam(writer: anytype, param: Param) !void {
     switch (param) {
         .string => |s| try writeJsonString(writer, s),
-        .integer => |n| try std.fmt.format(writer, "{d}", .{n}),
+        .integer => |n| try writer.print("{d}", .{n}),
         .float => |f| {
-            try std.fmt.format(writer, "{d}", .{f});
+            try writer.print("{d}", .{f});
         },
         .boolean => |b| try writer.writeAll(if (b) "true" else "false"),
         .null => try writer.writeAll("null"),
@@ -155,7 +155,7 @@ pub fn writeJsonString(writer: anytype, s: []const u8) !void {
             '\t' => try writer.writeAll("\\t"),
             else => {
                 if (c < 0x20) {
-                    try std.fmt.format(writer, "\\u{x:0>4}", .{c});
+                    try writer.print("\\u{x:0>4}", .{c});
                 } else {
                     try writer.writeByte(c);
                 }
@@ -168,37 +168,42 @@ pub fn writeJsonString(writer: anytype, s: []const u8) !void {
 // --- Convenience: allocate command JSON ---
 
 pub fn allocD1Query(allocator: Allocator, sql: []const u8, params: []const Param) ![]const u8 {
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    errdefer buf.deinit(allocator);
-    try writeD1Query(buf.writer(allocator), sql, params);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try writeD1Query(&aw.writer, sql, params);
+    var buf = aw.toArrayList();
     return buf.toOwnedSlice(allocator);
 }
 
 pub fn allocKvGet(allocator: Allocator, key: []const u8) ![]const u8 {
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    errdefer buf.deinit(allocator);
-    try writeKvGet(buf.writer(allocator), key);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try writeKvGet(&aw.writer, key);
+    var buf = aw.toArrayList();
     return buf.toOwnedSlice(allocator);
 }
 
 pub fn allocKvPut(allocator: Allocator, key: []const u8, value: []const u8, ttl: ?u32) ![]const u8 {
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    errdefer buf.deinit(allocator);
-    try writeKvPut(buf.writer(allocator), key, value, ttl);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try writeKvPut(&aw.writer, key, value, ttl);
+    var buf = aw.toArrayList();
     return buf.toOwnedSlice(allocator);
 }
 
 pub fn allocKvDelete(allocator: Allocator, key: []const u8) ![]const u8 {
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    errdefer buf.deinit(allocator);
-    try writeKvDelete(buf.writer(allocator), key);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try writeKvDelete(&aw.writer, key);
+    var buf = aw.toArrayList();
     return buf.toOwnedSlice(allocator);
 }
 
 pub fn allocResponse(allocator: Allocator, status: u16, headers_json: []const u8, body: []const u8) ![]const u8 {
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    errdefer buf.deinit(allocator);
-    try writeResponse(buf.writer(allocator), status, headers_json, body);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    try writeResponse(&aw.writer, status, headers_json, body);
+    var buf = aw.toArrayList();
     return buf.toOwnedSlice(allocator);
 }
 
@@ -206,93 +211,97 @@ pub fn allocResponse(allocator: Allocator, status: u16, headers_json: []const u8
 // Tests
 // ============================================================
 
+fn fixedWriter(buffer: []u8) std.Io.Writer {
+    return .fixed(buffer);
+}
+
 test "writeJsonString escapes special characters" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeJsonString(fbs.writer(), "hello \"world\"\nnew\\line");
-    try std.testing.expectEqualStrings("\"hello \\\"world\\\"\\nnew\\\\line\"", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeJsonString(&writer, "hello \"world\"\nnew\\line");
+    try std.testing.expectEqualStrings("\"hello \\\"world\\\"\\nnew\\\\line\"", writer.buffered());
 }
 
 test "writeJsonString escapes control characters" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeJsonString(fbs.writer(), &.{ 0x01, 0x1f });
-    try std.testing.expectEqualStrings("\"\\u0001\\u001f\"", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeJsonString(&writer, &.{ 0x01, 0x1f });
+    try std.testing.expectEqualStrings("\"\\u0001\\u001f\"", writer.buffered());
 }
 
 test "writeParam string" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeParam(fbs.writer(), .{ .string = "user@example.com" });
-    try std.testing.expectEqualStrings("\"user@example.com\"", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeParam(&writer, .{ .string = "user@example.com" });
+    try std.testing.expectEqualStrings("\"user@example.com\"", writer.buffered());
 }
 
 test "writeParam integer" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeParam(fbs.writer(), .{ .integer = 42 });
-    try std.testing.expectEqualStrings("42", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeParam(&writer, .{ .integer = 42 });
+    try std.testing.expectEqualStrings("42", writer.buffered());
 }
 
 test "writeParam null" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeParam(fbs.writer(), .null);
-    try std.testing.expectEqualStrings("null", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeParam(&writer, .null);
+    try std.testing.expectEqualStrings("null", writer.buffered());
 }
 
 test "writeParam boolean" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeParam(fbs.writer(), .{ .boolean = true });
-    try std.testing.expectEqualStrings("true", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeParam(&writer, .{ .boolean = true });
+    try std.testing.expectEqualStrings("true", writer.buffered());
 }
 
 test "writeD1Query with string params" {
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeD1Query(fbs.writer(), "SELECT * FROM users WHERE email = ?", &.{
+    var writer = fixedWriter(&buf);
+    try writeD1Query(&writer, "SELECT * FROM users WHERE email = ?", &.{
         .{ .string = "user@example.com" },
     });
     try std.testing.expectEqualStrings(
         "{\"sql\":\"SELECT * FROM users WHERE email = ?\",\"params\":[\"user@example.com\"]}",
-        fbs.getWritten(),
+        writer.buffered(),
     );
 }
 
 test "writeD1Query with mixed params" {
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeD1Query(fbs.writer(), "INSERT INTO t (a, b, c) VALUES (?, ?, ?)", &.{
+    var writer = fixedWriter(&buf);
+    try writeD1Query(&writer, "INSERT INTO t (a, b, c) VALUES (?, ?, ?)", &.{
         .{ .string = "hello" },
         .{ .integer = 42 },
         .null,
     });
     try std.testing.expectEqualStrings(
         "{\"sql\":\"INSERT INTO t (a, b, c) VALUES (?, ?, ?)\",\"params\":[\"hello\",42,null]}",
-        fbs.getWritten(),
+        writer.buffered(),
     );
 }
 
 test "writeD1Query with no params" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeD1Query(fbs.writer(), "SELECT count(*) FROM users", &.{});
+    var writer = fixedWriter(&buf);
+    try writeD1Query(&writer, "SELECT count(*) FROM users", &.{});
     try std.testing.expectEqualStrings(
         "{\"sql\":\"SELECT count(*) FROM users\",\"params\":[]}",
-        fbs.getWritten(),
+        writer.buffered(),
     );
 }
 
 test "writeD1Batch with multiple statements" {
     var buf: [1024]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
+    var writer = fixedWriter(&buf);
     const stmts: []const D1Statement = &.{
         .{ .sql = "INSERT INTO users (id) VALUES (?)", .params = &.{.{ .string = "u1" }} },
         .{ .sql = "INSERT INTO passkeys (user_id) VALUES (?)", .params = &.{.{ .string = "u1" }} },
     };
-    try writeD1Batch(fbs.writer(), stmts);
-    const result = fbs.getWritten();
+    try writeD1Batch(&writer, stmts);
+    const result = writer.buffered();
     // Should be a JSON array
     try std.testing.expect(result[0] == '[');
     try std.testing.expect(result[result.len - 1] == ']');
@@ -303,63 +312,63 @@ test "writeD1Batch with multiple statements" {
 
 test "writeKvGet" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeKvGet(fbs.writer(), "rt:abc123");
-    try std.testing.expectEqualStrings("{\"key\":\"rt:abc123\"}", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeKvGet(&writer, "rt:abc123");
+    try std.testing.expectEqualStrings("{\"key\":\"rt:abc123\"}", writer.buffered());
 }
 
 test "writeKvPut with TTL" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeKvPut(fbs.writer(), "rt:abc", "user123", 604800);
+    var writer = fixedWriter(&buf);
+    try writeKvPut(&writer, "rt:abc", "user123", 604800);
     try std.testing.expectEqualStrings(
         "{\"key\":\"rt:abc\",\"value\":\"user123\",\"ttl\":604800}",
-        fbs.getWritten(),
+        writer.buffered(),
     );
 }
 
 test "writeKvPut without TTL" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeKvPut(fbs.writer(), "key1", "val1", null);
+    var writer = fixedWriter(&buf);
+    try writeKvPut(&writer, "key1", "val1", null);
     try std.testing.expectEqualStrings(
         "{\"key\":\"key1\",\"value\":\"val1\"}",
-        fbs.getWritten(),
+        writer.buffered(),
     );
 }
 
 test "writeKvDelete" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeKvDelete(fbs.writer(), "rt:abc123");
-    try std.testing.expectEqualStrings("{\"key\":\"rt:abc123\"}", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeKvDelete(&writer, "rt:abc123");
+    try std.testing.expectEqualStrings("{\"key\":\"rt:abc123\"}", writer.buffered());
 }
 
 test "writeResponse" {
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeResponse(fbs.writer(), 200, "{\"Content-Type\":\"application/json\"}", "{\"ok\":true}");
+    var writer = fixedWriter(&buf);
+    try writeResponse(&writer, 200, "{\"Content-Type\":\"application/json\"}", "{\"ok\":true}");
     try std.testing.expectEqualStrings(
         "{\"status\":200,\"headers\":{\"Content-Type\":\"application/json\"},\"body\":\"{\\\"ok\\\":true}\"}",
-        fbs.getWritten(),
+        writer.buffered(),
     );
 }
 
 test "writeFetch minimal" {
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeFetch(fbs.writer(), "https://api.github.com/user", "GET", null, null);
+    var writer = fixedWriter(&buf);
+    try writeFetch(&writer, "https://api.github.com/user", "GET", null, null);
     try std.testing.expectEqualStrings(
         "{\"url\":\"https://api.github.com/user\",\"method\":\"GET\"}",
-        fbs.getWritten(),
+        writer.buffered(),
     );
 }
 
 test "writeFetch with headers and body" {
     var buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeFetch(fbs.writer(), "https://example.com/token", "POST", "{\"Accept\":\"application/json\"}", "code=abc");
-    const result = fbs.getWritten();
+    var writer = fixedWriter(&buf);
+    try writeFetch(&writer, "https://example.com/token", "POST", "{\"Accept\":\"application/json\"}", "code=abc");
+    const result = writer.buffered();
     try std.testing.expect(std.mem.indexOf(u8, result, "\"method\":\"POST\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, result, "\"body\":\"code=abc\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, result, "\"headers\":{\"Accept\":\"application/json\"}") != null);
@@ -367,9 +376,9 @@ test "writeFetch with headers and body" {
 
 test "writeEnvGet" {
     var buf: [256]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeEnvGet(fbs.writer(), "JWT_SECRET");
-    try std.testing.expectEqualStrings("{\"name\":\"JWT_SECRET\"}", fbs.getWritten());
+    var writer = fixedWriter(&buf);
+    try writeEnvGet(&writer, "JWT_SECRET");
+    try std.testing.expectEqualStrings("{\"name\":\"JWT_SECRET\"}", writer.buffered());
 }
 
 test "allocD1Query returns owned slice" {

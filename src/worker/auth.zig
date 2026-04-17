@@ -70,8 +70,10 @@ fn beginJwtAuth(ctx: *Context, token: []const u8) Action {
     // Actually, we can concatenate: first get JWT_SECRET, then in step 1 verify + check blocklist
 
     // For efficiency: issue env_get for JWT_SECRET
-    var buf: std.ArrayListUnmanaged(u8) = .empty;
-    command.writeEnvGet(buf.writer(alloc), "JWT_SECRET") catch return ctx.respondError(500, "Internal error");
+    var aw: std.Io.Writer.Allocating = .init(alloc);
+    defer aw.deinit();
+    command.writeEnvGet(&aw.writer, "JWT_SECRET") catch return ctx.respondError(500, "Internal error");
+    const buf = aw.toArrayList();
     return .{ .cmd = .{ .tag = .env_get, .data = buf.items } };
 }
 
@@ -200,12 +202,12 @@ pub fn bytesToHex(bytes: []const u8, out: []u8) []const u8 {
 pub fn extractJsonField(alloc: Allocator, json: []const u8, key: []const u8) ?[]const u8 {
     // Build search pattern: "key":  (stack buffer, key names are short)
     var pattern_storage: [128]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&pattern_storage);
-    const pw = fbs.writer();
+    var writer: std.Io.Writer = .fixed(&pattern_storage);
+    const pw = &writer;
     pw.writeByte('"') catch return null;
     pw.writeAll(key) catch return null;
     pw.writeAll("\":") catch return null;
-    const pattern = fbs.getWritten();
+    const pattern = writer.buffered();
 
     const pos = std.mem.indexOf(u8, json, pattern) orelse return null;
     var start = pos + pattern.len;
@@ -479,13 +481,13 @@ test "completeApiKeyAuth with valid key" {
 
     // Simulate D1 row result
     var row_buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&row_buf);
-    const w = fbs.writer();
+    var writer: std.Io.Writer = .fixed(&row_buf);
+    const w = &writer;
     w.writeAll("{\"id\":\"ak1\",\"user_id\":\"u1\",\"key_hash\":\"") catch return error.TestUnexpectedResult;
     w.writeAll(hash_hex) catch return error.TestUnexpectedResult;
     w.writeAll("\",\"revoked_at\":null,\"expires_at\":null}") catch return error.TestUnexpectedResult;
 
-    const ok = completeApiKeyAuth(&ctx, fbs.getWritten());
+    const ok = completeApiKeyAuth(&ctx, writer.buffered());
     try std.testing.expect(ok);
     try std.testing.expectEqualStrings("u1", ctx.load("claims_sub").?);
     try std.testing.expectEqualStrings("ak1", ctx.load("claims_api_key_id").?);
@@ -518,13 +520,13 @@ test "completeApiKeyAuth with revoked key fails" {
     ctx.stash("api_key", api_key);
 
     var row_buf: [512]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&row_buf);
-    const w = fbs.writer();
+    var writer: std.Io.Writer = .fixed(&row_buf);
+    const w = &writer;
     w.writeAll("{\"id\":\"ak1\",\"user_id\":\"u1\",\"key_hash\":\"") catch return error.TestUnexpectedResult;
     w.writeAll(hash_hex) catch return error.TestUnexpectedResult;
     w.writeAll("\",\"revoked_at\":\"2024-01-01\",\"expires_at\":null}") catch return error.TestUnexpectedResult;
 
-    const ok = completeApiKeyAuth(&ctx, fbs.getWritten());
+    const ok = completeApiKeyAuth(&ctx, writer.buffered());
     try std.testing.expect(!ok);
 }
 
