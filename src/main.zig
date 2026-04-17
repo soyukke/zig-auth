@@ -197,8 +197,14 @@ fn toWebAuthnStatus(err: webauthn.WebAuthnError) i32 {
     return @intFromEnum(status);
 }
 
+// Pull in worker module exports for WASM
+comptime {
+    _ = @import("worker/bridge.zig");
+}
+
 test {
     _ = types;
     _ = jwt;
     _ = base64url;
+    _ = @import("worker/root.zig");
 }

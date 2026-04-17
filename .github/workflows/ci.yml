@@ -15,7 +15,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.16.0
 
       - name: Run Zig tests
         run: zig build test
@@ -46,7 +46,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: 0.16.0
 
       - name: Download WASM artifact
         uses: actions/download-artifact@v4
@@ -83,4 +83,3 @@ jobs:
         with:
           name: playwright-results
           path: web/test-results/
-

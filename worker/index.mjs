@@ -1,3 +1,4 @@
+import { handleRequest } from './bridge.mjs';
 import { createRouter } from './router.mjs';
 import { withCors, corsHeaders } from './middleware/cors.mjs';
 import { authMiddleware } from './middleware/auth.mjs';
@@ -66,6 +67,13 @@ export default {
     }
 
     try {
+      // Try Zig WASM router first
+      const zigResponse = await handleRequest(request.clone(), env);
+      if (zigResponse) {
+        return withCors(zigResponse, env);
+      }
+
+      // Fall back to JS router for routes not yet migrated
       const response = await router.handle(request, env, ctx);
       return withCors(response, env);
     } catch (err) {
